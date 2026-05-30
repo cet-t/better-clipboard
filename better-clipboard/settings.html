@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/settings.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title data-locale="window_title_settings">Better Clipboard - 設定</title>
+    <script type="module" src="/src/settings.ts" defer></script>
+  </head>
+  <body>
+    <div id="settings">
+      <h1 data-locale="settings_title">設定</h1>
+
+      <section>
+        <h2 data-locale="settings_hotkey_section">ホットキー</h2>
+        <div class="field">
+          <label for="overlay-key" data-locale="settings_overlay_key">オーバーレイ表示</label>
+          <input id="overlay-key" type="text" data-locale-ph="settings_overlay_ph" placeholder="例: alt+c" />
+        </div>
+        <div class="field">
+          <label for="select-keys" data-locale="settings_select_keys">選択キー</label>
+          <input id="select-keys" type="text" data-locale-ph="settings_select_keys_ph" placeholder="例: asdfjkl;" />
+        </div>
+      </section>
+
+      <section>
+        <h2 data-locale="settings_display_section">表示</h2>
+        <div class="field">
+          <label for="font-family" data-locale="settings_font">フォント（空欄＝システム標準）</label>
+          <input id="font-family" type="text" data-locale-ph="settings_font_ph" placeholder="例: 'JetBrains Mono', monospace" />
+        </div>
+      </section>
+
+      <section>
+        <h2 data-locale="settings_locale_section">言語</h2>
+        <div class="field">
+          <label for="locale" data-locale="settings_locale">言語設定</label>
+          <select id="locale">
+            <option value="" data-locale="settings_locale_auto">システム既定</option>
+            <option value="en" data-locale="settings_locale_en">English</option>
+            <option value="ja" data-locale="settings_locale_ja">日本語</option>
+          </select>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-locale="settings_persistence_section">保存</h2>
+        <div class="field">
+          <label for="persistence" data-locale="settings_persistence_mode">永続化モード</label>
+          <select id="persistence">
+            <option value="session" data-locale="settings_persistence_session">セッションのみ</option>
+            <option value="db" data-locale="settings_persistence_db">DB保存</option>
+          </select>
+        </div>
+        <div class="field" id="db-field">
+          <label for="db-path" data-locale="settings_db_path">DB 保存先</label>
+          <input id="db-path" type="text" />
+        </div>
+        <div class="field">
+          <label for="max-entries" data-locale="settings_max_entries">最大エントリ数</label>
+          <input id="max-entries" type="number" min="1" max="1000" />
+        </div>
+      </section>
+
+      <section>
+        <h2 data-locale="settings_clear_section">クリア</h2>
+        <div class="button-row">
+          <button id="clear-display" data-locale="settings_clear_display">表示のみ削除</button>
+          <button id="clear-all" data-locale="settings_clear_all">すべて削除</button>
+        </div>
+        <div class="field">
+          <label for="clear-older-days" data-locale="settings_clear_older">N日以上前を削除</label>
+          <div class="inline">
+            <input id="clear-older-days" type="number" min="1" value="30" />
+            <button id="clear-older" data-locale="settings_clear_older_btn">実行</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="save" class="primary" data-locale="settings_save">保存</button>
+        <button id="cancel" data-locale="settings_cancel">キャンセル</button>
+      </div>
+      <p id="status"></p>
+    </div>
+  </body>
+</html>
