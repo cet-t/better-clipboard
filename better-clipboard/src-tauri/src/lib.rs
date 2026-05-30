@@ -1,10 +1,11 @@
+mod clipboard;
 mod config;
 mod db;
-mod clipboard;
+mod fonts;
+mod locale;
+mod logging;
 mod paste;
 mod tray;
-mod logging;
-mod locale;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -17,17 +18,20 @@ pub struct AppState {
     pub suppress_monitor: AtomicBool,
     pub overlay_visible: AtomicBool,
     pub locale_strings: Mutex<locale::LocaleStrings>,
+    pub tray_items: Mutex<Option<tray::TrayItems<tauri::Wry>>>,
 }
 
 #[tauri::command]
-fn get_clipboard_entries(state: tauri::State<'_, AppState>) -> Result<Vec<db::ClipboardEntry>, String> {
+fn get_clipboard_entries(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<db::ClipboardEntry>, String> {
     let db = state.database.lock().map_err(|e| e.to_string())?;
     db.get_recent(10).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn ensure_clipboard_captured(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
 
     let text = match clipboard::read_current_text() {
         Some(t) if !t.is_empty() => t,
@@ -39,7 +43,8 @@ fn ensure_clipboard_captured(state: tauri::State<'_, AppState>) -> Result<(), St
     let content_hash = format!("{:x}", hasher.finalize());
 
     let db = state.database.lock().map_err(|e| e.to_string())?;
-    let existing = db.get_id_by_hash(&content_hash, "text")
+    let existing = db
+        .get_id_by_hash(&content_hash, "text")
         .map_err(|e| e.to_string())?;
 
     if existing.is_none() {
@@ -70,26 +75,75 @@ fn delete_entry(state: tauri::State<'_, AppState>, id: i64) -> Result<(), String
 }
 
 #[tauri::command]
-fn get_config(state: tauri::State<'_, AppState>) -> Result<config::Config, String> {
-    state.config.lock().map_err(|e| e.to_string()).map(|g| g.clone())
+fn save_edited_entry(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    text: String,
+) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    let content_hash = format!("{:x}", hasher.finalize());
+    let db = state.database.lock().map_err(|e| e.to_string())?;
+    db.update_entry_text(id, &text, &content_hash)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn save_config(state: tauri::State<'_, AppState>, config: config::Config) -> Result<(), String> {
-    let lang = config.locale.clone().unwrap_or_else(locale::detect_language);
+fn get_config(state: tauri::State<'_, AppState>) -> Result<config::Config, String> {
+    state
+        .config
+        .lock()
+        .map_err(|e| e.to_string())
+        .map(|g| g.clone())
+}
+
+#[tauri::command]
+fn save_config(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    config: config::Config,
+) -> Result<(), String> {
+    let lang = config
+        .locale
+        .clone()
+        .unwrap_or_else(locale::detect_language);
     let new_locale = locale::LocaleStrings::load(&lang);
     config.save();
-    let mut guard = state.config.lock().map_err(|e| e.to_string())?;
-    *guard = config;
-    let mut locale_guard = state.locale_strings.lock().map_err(|e| e.to_string())?;
-    *locale_guard = new_locale;
+    {
+        let mut guard = state.config.lock().map_err(|e| e.to_string())?;
+        *guard = config;
+    }
+    {
+        let mut locale_guard = state.locale_strings.lock().map_err(|e| e.to_string())?;
+        *locale_guard = new_locale.clone();
+    }
+    {
+        let tray_guard = state.tray_items.lock().map_err(|e| e.to_string())?;
+        if let Some(ref items) = *tray_guard {
+            tray::update_tray_menu(items, &new_locale.strings);
+        }
+    }
+    if let Some(w) = app.get_webview_window("overlay") {
+        let _ = w.set_title(&new_locale.get("window_title_overlay"));
+    }
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.set_title(&new_locale.get("window_title_settings"));
+    }
     Ok(())
 }
 
 #[tauri::command]
-fn get_locale_strings(state: tauri::State<'_, AppState>) -> Result<std::collections::HashMap<String, String>, String> {
+fn get_locale_strings(
+    state: tauri::State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, String>, String> {
     let guard = state.locale_strings.lock().map_err(|e| e.to_string())?;
     Ok(guard.strings.clone())
+}
+
+#[tauri::command]
+fn get_system_fonts() -> Vec<String> {
+    fonts::get_system_families()
 }
 
 #[tauri::command]
@@ -121,19 +175,26 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn paste_entry(app: tauri::AppHandle, state: tauri::State<'_, AppState>, index: usize) -> Result<(), String> {
+fn paste_entry(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    index: usize,
+) -> Result<(), String> {
     log::info!("paste_entry called: index={}", index);
 
     let db = state.database.lock().map_err(|e| e.to_string())?;
     let entries = db.get_recent(10).map_err(|e| e.to_string())?;
     let entry = entries.get(index).ok_or("Invalid index")?;
-    log::info!("entry found: type={}, text_len={}", entry.entry_type, entry.text_content.as_ref().map_or(0, |s| s.len()));
+    log::info!(
+        "entry found: type={}, text_len={}",
+        entry.entry_type,
+        entry.text_content.as_ref().map_or(0, |s| s.len())
+    );
 
     if let Some(text) = &entry.text_content {
         let text = text.clone();
         drop(db);
         state.suppress_monitor.store(true, Ordering::SeqCst);
-        drop(state);
 
         if let Some(window) = app.get_webview_window("overlay") {
             let _ = window.hide();
@@ -168,7 +229,9 @@ fn clear_entries(
             }
             r
         }
-        "older" => db.clear_older_than(days.unwrap_or(30)).map_err(|e| e.to_string()),
+        "older" => db
+            .clear_older_than(days.unwrap_or(30))
+            .map_err(|e| e.to_string()),
         _ => Err("Invalid mode".to_string()),
     };
     drop(db);
@@ -226,8 +289,7 @@ pub fn run() {
     let max_entries = cfg.max_entries;
     let hotkey = cfg.overlay_hotkey_plugin_format();
 
-    let database = db::Database::open(&db_path, max_entries)
-        .expect("Failed to open database");
+    let database = db::Database::open(&db_path, max_entries).expect("Failed to open database");
 
     let lang = cfg.locale.clone().unwrap_or_else(locale::detect_language);
     let locale_strings = locale::LocaleStrings::load(&lang);
@@ -238,6 +300,7 @@ pub fn run() {
         suppress_monitor: AtomicBool::new(false),
         overlay_visible: AtomicBool::new(false),
         locale_strings: Mutex::new(locale_strings),
+        tray_items: Mutex::new(None),
     };
 
     tauri::Builder::default()
@@ -245,7 +308,11 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
-                    log::info!("SHORTCUT HANDLER CALLED: state={:?}, shortcut={}", event.state, shortcut);
+                    log::info!(
+                        "SHORTCUT HANDLER CALLED: state={:?}, shortcut={}",
+                        event.state,
+                        shortcut
+                    );
                     if event.state == ShortcutState::Pressed {
                         toggle_overlay(app);
                     }
@@ -255,7 +322,20 @@ pub fn run() {
         .manage(state)
         .setup(move |app| {
             log::info!("setup started");
-            tray::setup(app.app_handle())?;
+
+            let tray_locale = {
+                let state = app.state::<AppState>();
+                let guard = state.locale_strings.lock().map_err(|e| e.to_string())?;
+                guard.strings.clone()
+            };
+
+            let tray_items =
+                tray::setup(app.app_handle(), &tray_locale).map_err(|e| e.to_string())?;
+            {
+                let state = app.state::<AppState>();
+                let mut guard = state.tray_items.lock().map_err(|e| e.to_string())?;
+                *guard = Some(tray_items);
+            }
             log::info!("registering hotkey: '{}'", hotkey);
             let result = app.global_shortcut().register(hotkey.as_str());
             log::info!("registration result: {:?}", result);
@@ -271,7 +351,7 @@ pub fn run() {
             clipboard::start_monitoring(tx);
 
             std::thread::spawn(move || {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 for event in rx {
                     log::debug!("clipboard event received");
 
@@ -327,7 +407,9 @@ pub fn run() {
                     let mut prev_down = false;
                     loop {
                         std::thread::sleep(std::time::Duration::from_millis(30));
-                        let down = unsafe { winapi::um::winuser::GetAsyncKeyState(0x1B) as u16 & 0x8000 != 0 };
+                        let down = unsafe {
+                            winapi::um::winuser::GetAsyncKeyState(0x1B) as u16 & 0x8000 != 0
+                        };
                         if down && !prev_down {
                             if let Some(state) = handle.try_state::<AppState>() {
                                 if state.overlay_visible.load(Ordering::SeqCst) {
@@ -350,11 +432,13 @@ pub fn run() {
             get_clipboard_entries,
             ensure_clipboard_captured,
             delete_entry,
+            save_edited_entry,
             clear_entries,
             paste_entry,
             get_config,
             save_config,
             get_locale_strings,
+            get_system_fonts,
             open_settings,
         ])
         .run(tauri::generate_context!())

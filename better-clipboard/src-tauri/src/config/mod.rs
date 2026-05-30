@@ -7,6 +7,14 @@ pub struct Hotkeys {
     pub overlay: String,
     #[serde(default = "default_select_keys")]
     pub select_keys: String,
+    #[serde(default = "default_edit_key")]
+    pub edit_key: String,
+    #[serde(default = "default_delete_key")]
+    pub delete_key: String,
+    #[serde(default = "default_page_up")]
+    pub page_up: String,
+    #[serde(default = "default_page_down")]
+    pub page_down: String,
 }
 
 fn default_overlay() -> String {
@@ -17,27 +25,42 @@ fn default_select_keys() -> String {
     "asdfjkl;".to_string()
 }
 
+fn default_edit_key() -> String {
+    "e".to_string()
+}
+
+fn default_delete_key() -> String {
+    "q".to_string()
+}
+
+fn default_page_up() -> String {
+    "w".to_string()
+}
+
+fn default_page_down() -> String {
+    "r".to_string()
+}
+
 impl Default for Hotkeys {
     fn default() -> Self {
         Self {
             overlay: default_overlay(),
             select_keys: default_select_keys(),
+            edit_key: default_edit_key(),
+            delete_key: default_delete_key(),
+            page_up: default_page_up(),
+            page_down: default_page_down(),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum PersistenceMode {
+    #[default]
     #[serde(rename = "session")]
     Session,
     #[serde(rename = "db")]
     Db,
-}
-
-impl Default for PersistenceMode {
-    fn default() -> Self {
-        Self::Session
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,8 +70,7 @@ pub struct DbConfig {
 }
 
 fn default_db_path() -> PathBuf {
-    let base = dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("."));
+    let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
     base.join("BetterClipboard").join("content.db")
 }
 
@@ -96,7 +118,8 @@ impl Default for Config {
 impl Config {
     /// "alt+c" → "Alt+C", "ctrl+shift+v" → "Ctrl+Shift+V"
     pub fn overlay_hotkey_plugin_format(&self) -> String {
-        self.hotkeys.overlay
+        self.hotkeys
+            .overlay
             .split(&['+', ' '][..])
             .filter(|s| !s.is_empty())
             .map(|s| {
@@ -113,8 +136,7 @@ impl Config {
     }
 
     pub fn path() -> PathBuf {
-        let base = dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."));
+        let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
         base.join("BetterClipboard").join("config.toml")
     }
 

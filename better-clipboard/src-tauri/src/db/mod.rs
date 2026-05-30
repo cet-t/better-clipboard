@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result as SqlResult, params};
+use rusqlite::{params, Connection, Result as SqlResult};
 use serde::Serialize;
 use std::path::Path;
 
@@ -54,7 +54,7 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_clipboard_entries_order
                 ON clipboard_entries(display_order);
             CREATE INDEX IF NOT EXISTS idx_clipboard_entries_created
-                ON clipboard_entries(created_at DESC);"
+                ON clipboard_entries(created_at DESC);",
         )?;
         Ok(())
     }
@@ -138,7 +138,7 @@ impl Database {
                     thumbnail_path, file_size, source_app, created_at, is_pinned, display_order
              FROM clipboard_entries
              ORDER BY display_order DESC, created_at DESC
-             LIMIT ?1"
+             LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], |row| {
             Ok(ClipboardEntry {
@@ -159,13 +159,22 @@ impl Database {
     }
 
     pub fn count_entries(&self) -> SqlResult<i64> {
-        self.conn.query_row("SELECT COUNT(*) FROM clipboard_entries", [], |row| row.get(0))
+        self.conn
+            .query_row("SELECT COUNT(*) FROM clipboard_entries", [], |row| {
+                row.get(0)
+            })
     }
 
     pub fn delete_entry(&self, id: i64) -> SqlResult<()> {
+        self.conn
+            .execute("DELETE FROM clipboard_entries WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn update_entry_text(&self, id: i64, text: &str, content_hash: &str) -> SqlResult<()> {
         self.conn.execute(
-            "DELETE FROM clipboard_entries WHERE id = ?1",
-            params![id],
+            "UPDATE clipboard_entries SET text_content = ?1, content_hash = ?2 WHERE id = ?3",
+            params![text, content_hash, id],
         )?;
         Ok(())
     }

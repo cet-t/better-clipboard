@@ -16,7 +16,21 @@
       <div id="entry-list"></div>
       <div id="footer">
         <span data-locale="overlay_footer_select">a-; select</span>
+        <span id="footer-page"></span>
+        <span id="footer-edit">e edit</span>
+        <span id="footer-delete">q delete</span>
         <span data-locale="overlay_footer_close">Esc close</span>
+      </div>
+    </div>
+    <div id="edit-panel" class="hidden">
+      <div class="edit-header">
+        <span id="edit-label">Edit</span>
+        <span id="edit-hint">Ctrl+S save | Esc cancel</span>
+      </div>
+      <textarea id="edit-textarea" rows="4"></textarea>
+      <div class="edit-actions">
+        <button id="edit-save" class="primary">Save</button>
+        <button id="edit-cancel">Cancel</button>
       </div>
     </div>
   </body>
