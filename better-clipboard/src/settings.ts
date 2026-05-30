@@ -1,9 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Combo } from "./combo";
 
 interface Hotkeys {
   overlay: string;
   select_keys: string;
+  edit_key: string;
+  page_up: string;
+  page_down: string;
 }
 
 interface DbConfig {
@@ -21,13 +25,42 @@ interface Config {
 
 let strings: Record<string, string> = {};
 
-const overlayKey = document.getElementById("overlay-key") as HTMLInputElement;
+const KEY_OPTIONS = [
+  ...("abcdefghijklmnopqrstuvwxyz".split("").map((k) => k)),
+  ...("0123456789".split("")),
+  "Tab", "Space", "Backspace", "Delete", "Insert",
+  "Home", "End", "PageUp", "PageDown",
+  "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+  "F1", "F2", "F3", "F4", "F5", "F6",
+  "F7", "F8", "F9", "F10", "F11", "F12",
+];
+
+const MODIFIER_COMBOS: string[] = [];
+for (const mod of ["ctrl", "alt", "shift"]) {
+  for (const key of "abcdefghijklmnopqrstuvwxyz".split("")) {
+    MODIFIER_COMBOS.push(`${mod}+${key}`);
+  }
+}
+for (const mod of ["ctrl+alt", "ctrl+shift", "alt+shift"]) {
+  for (const key of "abcdefghijklmnopqrstuvwxyz".split("")) {
+    MODIFIER_COMBOS.push(`${mod}+${key}`);
+  }
+}
+
+const HOTKEY_OPTIONS = [...KEY_OPTIONS, ...MODIFIER_COMBOS].sort();
+
+const FONT_FALLBACKS = ["monospace", "sans-serif", "serif", "cursive", "fantasy"];
+
+const overlayCombo = new Combo(document.getElementById("overlay-key")!, { placeholder: "検索..." });
+const pageUpCombo = new Combo(document.getElementById("page-up-key")!, { placeholder: "検索..." });
+const pageDownCombo = new Combo(document.getElementById("page-down-key")!, { placeholder: "検索..." });
+const fontCombo = new Combo(document.getElementById("font-family")!, { placeholder: "検索..." });
+
 const selectKeys = document.getElementById("select-keys") as HTMLInputElement;
 const persistence = document.getElementById("persistence") as HTMLSelectElement;
 const dbPath = document.getElementById("db-path") as HTMLInputElement;
 const dbField = document.getElementById("db-field") as HTMLElement;
 const maxEntries = document.getElementById("max-entries") as HTMLInputElement;
-const fontFamily = document.getElementById("font-family") as HTMLInputElement;
 const localeSelect = document.getElementById("locale") as HTMLSelectElement;
 const clearDisplayBtn = document.getElementById("clear-display") as HTMLButtonElement;
 const clearAllBtn = document.getElementById("clear-all") as HTMLButtonElement;
@@ -37,21 +70,27 @@ const saveBtn = document.getElementById("save") as HTMLButtonElement;
 const cancelBtn = document.getElementById("cancel") as HTMLButtonElement;
 const status = document.getElementById("status") as HTMLParagraphElement;
 
+overlayCombo.setOptions(HOTKEY_OPTIONS);
+pageUpCombo.setOptions(KEY_OPTIONS);
+pageDownCombo.setOptions(KEY_OPTIONS);
+
+async function loadFonts() {
+  try {
+    const fonts = await invoke<string[]>("get_system_fonts");
+    fontCombo.setOptions(["", ...fonts, ...FONT_FALLBACKS]);
+  } catch (err) {
+    console.error("Failed to load fonts:", err);
+    fontCombo.setOptions(["", ...FONT_FALLBACKS]);
+  }
+}
+
 async function applyLocale() {
   try {
     strings = await invoke<Record<string, string>>("get_locale_strings");
     document.title = strings.window_title_settings || document.title;
     document.querySelectorAll<HTMLElement>("[data-locale]").forEach((el) => {
       const key = el.dataset.locale;
-      if (key && strings[key]) {
-        el.textContent = strings[key];
-      }
-    });
-    document.querySelectorAll<HTMLInputElement>("[data-locale-ph]").forEach((el) => {
-      const key = el.dataset.localePh;
-      if (key && strings[key]) {
-        el.placeholder = strings[key];
-      }
+      if (key && strings[key]) el.textContent = strings[key];
     });
   } catch (err) {
     console.error("Failed to load locale:", err);
@@ -61,13 +100,16 @@ async function applyLocale() {
 async function loadConfig() {
   try {
     const config = await invoke<Config>("get_config");
-    overlayKey.value = config.hotkeys.overlay;
+    overlayCombo.setValue(config.hotkeys.overlay);
     selectKeys.value = config.hotkeys.select_keys;
+    pageUpCombo.setValue(config.hotkeys.page_up || "w");
+    pageDownCombo.setValue(config.hotkeys.page_down || "r");
     persistence.value = config.persistence;
     dbPath.value = config.db.path;
     maxEntries.value = String(config.max_entries);
-    fontFamily.value = config.font_family || "";
+    fontCombo.setValue(config.font_family || "");
     localeSelect.value = config.locale || "";
+    if (config.font_family) document.body.style.fontFamily = config.font_family;
     toggleDbField();
   } catch (err) {
     status.textContent = strings.status_load_failed || "Failed to load settings";
@@ -84,13 +126,16 @@ persistence.addEventListener("change", toggleDbField);
 async function saveConfig() {
   const config: Config = {
     hotkeys: {
-      overlay: overlayKey.value,
+      overlay: overlayCombo.getValue(),
       select_keys: selectKeys.value,
+      edit_key: "e",
+      page_up: pageUpCombo.getValue(),
+      page_down: pageDownCombo.getValue(),
     },
     persistence: persistence.value,
     db: { path: dbPath.value },
     max_entries: parseInt(maxEntries.value, 10) || 100,
-    font_family: fontFamily.value || null,
+    font_family: fontCombo.getValue() || null,
     locale: localeSelect.value || null,
   };
 
@@ -142,5 +187,6 @@ clearOlderBtn.addEventListener("click", clearOlder);
 
 window.addEventListener("DOMContentLoaded", async () => {
   await applyLocale();
+  await loadFonts();
   loadConfig();
 });

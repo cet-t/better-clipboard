@@ -1,14 +1,24 @@
+use std::collections::HashMap;
+
+use anyhow::Result;
 use tauri::{
-    AppHandle, Emitter, Runtime, WebviewUrl, WebviewWindowBuilder,
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     menu::{Menu, MenuItem},
-    Manager,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
 
-pub fn setup<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
-    let settings = MenuItem::with_id(app, "settings", "設定", true, None::<&str>)?;
-    let restart = MenuItem::with_id(app, "restart", "再起動", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+pub struct TrayItems<R: Runtime> {
+    pub settings: MenuItem<R>,
+    pub restart: MenuItem<R>,
+    pub quit: MenuItem<R>,
+}
+
+pub fn setup<R: Runtime>(app: &AppHandle<R>, locale: &HashMap<String, String>) -> Result<TrayItems<R>> {
+    let s = |k: &str| locale.get(k).cloned().unwrap_or_default();
+
+    let settings = MenuItem::with_id(app, "settings", s("tray_settings"), true, None::<&str>)?;
+    let restart = MenuItem::with_id(app, "restart", s("tray_restart"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", s("tray_quit"), true, None::<&str>)?;
 
     let menu = Menu::with_items(app, &[&settings, &restart, &quit])?;
 
@@ -21,17 +31,20 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::E
                     let _ = overlay.hide();
                 }
                 if let Some(window) = app.get_webview_window("settings") {
-                    log::info!("found settings window, showing");
                     let _ = window.show();
                     let _ = window.set_focus();
                 } else {
                     log::warn!("settings window not found, creating it now");
-                    if let Ok(window) = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-                        .title("Better Clipboard - 設定")
-                        .inner_size(520.0, 600.0)
-                        .resizable(false)
-                        .center()
-                        .build()
+                    if let Ok(window) = WebviewWindowBuilder::new(
+                        app,
+                        "settings",
+                        WebviewUrl::App("settings.html".into()),
+                    )
+                    .title("Better Clipboard - Settings")
+                    .inner_size(520.0, 600.0)
+                    .resizable(false)
+                    .center()
+                    .build()
                     {
                         let _ = window.show();
                         let _ = window.set_focus();
@@ -61,5 +74,17 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::E
         })
         .build(app)?;
 
-    Ok(())
+    Ok(TrayItems { settings, restart, quit })
+}
+
+pub fn update_tray_menu<R: Runtime>(items: &TrayItems<R>, locale: &HashMap<String, String>) {
+    let _ = items
+        .settings
+        .set_text(locale.get("tray_settings").map(|s| s.as_str()).unwrap_or("Settings"));
+    let _ = items
+        .restart
+        .set_text(locale.get("tray_restart").map(|s| s.as_str()).unwrap_or("Restart"));
+    let _ = items
+        .quit
+        .set_text(locale.get("tray_quit").map(|s| s.as_str()).unwrap_or("Quit"));
 }

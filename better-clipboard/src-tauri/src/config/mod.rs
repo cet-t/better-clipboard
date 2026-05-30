@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hotkeys {
@@ -116,7 +117,6 @@ impl Default for Config {
 }
 
 impl Config {
-    /// "alt+c" → "Alt+C", "ctrl+shift+v" → "Ctrl+Shift+V"
     pub fn overlay_hotkey_plugin_format(&self) -> String {
         self.hotkeys
             .overlay

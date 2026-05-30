@@ -1,9 +1,17 @@
 {
   "window_title_overlay": "Better Clipboard",
   "window_title_settings": "Better Clipboard - 設定",
+  "tray_settings": "設定",
+  "tray_restart": "再起動",
+  "tray_quit": "終了",
 
   "overlay_title": "クリップボード",
   "overlay_footer_select": "a-; 選択",
+  "overlay_footer_edit": "{key} 編集",
+  "overlay_footer_edit_select": "{key} 戻る | a-; 選択",
+  "overlay_footer_delete": "{key} 削除",
+  "overlay_footer_delete_select": "{key} 戻る | a-; 選択",
+  "overlay_footer_page": "w↑ r↓ {current}/{total}",
   "overlay_footer_close": "Esc 閉じる",
 
   "settings_title": "設定",

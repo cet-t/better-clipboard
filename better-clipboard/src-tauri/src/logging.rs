@@ -41,7 +41,6 @@ impl log::Log for FileLogger {
             return;
         }
         if let Ok(mut file) = self.file.lock() {
-            use std::io::Write;
             let _ = writeln!(
                 file,
                 "[{} {} {}] {}",

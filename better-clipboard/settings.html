@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/settings.css" />
+    <link rel="stylesheet" href="/src/combo.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title data-locale="window_title_settings">Better Clipboard - 設定</title>
     <script type="module" src="/src/settings.ts" defer></script>
@@ -14,20 +15,28 @@
       <section>
         <h2 data-locale="settings_hotkey_section">ホットキー</h2>
         <div class="field">
-          <label for="overlay-key" data-locale="settings_overlay_key">オーバーレイ表示</label>
-          <input id="overlay-key" type="text" data-locale-ph="settings_overlay_ph" placeholder="例: alt+c" />
+          <label data-locale="settings_overlay_key">オーバーレイ表示</label>
+          <div id="overlay-key" class="combo"></div>
         </div>
         <div class="field">
           <label for="select-keys" data-locale="settings_select_keys">選択キー</label>
           <input id="select-keys" type="text" data-locale-ph="settings_select_keys_ph" placeholder="例: asdfjkl;" />
+        </div>
+        <div class="field">
+          <label>ページアップ</label>
+          <div id="page-up-key" class="combo"></div>
+        </div>
+        <div class="field">
+          <label>ページダウン</label>
+          <div id="page-down-key" class="combo"></div>
         </div>
       </section>
 
       <section>
         <h2 data-locale="settings_display_section">表示</h2>
         <div class="field">
-          <label for="font-family" data-locale="settings_font">フォント（空欄＝システム標準）</label>
-          <input id="font-family" type="text" data-locale-ph="settings_font_ph" placeholder="例: 'JetBrains Mono', monospace" />
+          <label data-locale="settings_font">フォント</label>
+          <div id="font-family" class="combo"></div>
         </div>
       </section>
 

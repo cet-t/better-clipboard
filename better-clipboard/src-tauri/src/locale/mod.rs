@@ -1,10 +1,8 @@
-use serde::Deserialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
-const LOCALE_JSON: &[(&str, &str)] = &[
-    ("en", include_str!("../../locales/en.json")),
-    ("ja", include_str!("../../locales/ja.json")),
-];
+use serde::Deserialize;
+use winapi::um::winnls::GetUserDefaultUILanguage;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LocaleStrings {
@@ -14,31 +12,42 @@ pub struct LocaleStrings {
 
 impl LocaleStrings {
     pub fn load(lang: &str) -> Self {
-        let content = LOCALE_JSON
-            .iter()
-            .find(|(key, _)| *key == lang)
-            .map(|(_, json)| *json)
-            .unwrap_or(LOCALE_JSON[0].1);
-
-        match serde_json::from_str::<Self>(content) {
-            Ok(parsed) => {
-                log::info!("loaded locale: {}", lang);
-                parsed
-            }
-            Err(e) => {
-                log::error!("failed to parse locale '{}': {}", lang, e);
-                Self::fallback()
-            }
+        if let Some(s) = Self::from_file(lang) {
+            log::info!("loaded locale from file: {}", lang);
+            return s;
         }
+        if let Some(s) = Self::from_embedded(lang) {
+            log::info!("loaded locale from embedded: {}", lang);
+            return s;
+        }
+        log::warn!("locale '{}' not found, using fallback", lang);
+        Self::fallback()
+    }
+
+    fn from_file(lang: &str) -> Option<Self> {
+        let path = locale_dir().join(format!("{}.json", lang));
+        let content = std::fs::read_to_string(&path).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+
+    fn from_embedded(lang: &str) -> Option<Self> {
+        let json = match lang {
+            "ja" => Some(include_str!("../../locales/ja.json")),
+            _ => None,
+        };
+        json.and_then(|s| serde_json::from_str(s).ok())
     }
 
     pub fn fallback() -> Self {
-        let content = LOCALE_JSON[0].1;
+        let content = include_str!("../../locales/en.json");
         serde_json::from_str(content).expect("built-in en.json is valid")
     }
 
     pub fn get(&self, key: &str) -> String {
-        self.strings.get(key).cloned().unwrap_or_else(|| key.to_string())
+        self.strings
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| key.to_string())
     }
 
     pub fn get_with(&self, key: &str, params: &[(&str, &str)]) -> String {
@@ -50,21 +59,22 @@ impl LocaleStrings {
     }
 }
 
+fn locale_dir() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            return dir.join("locales");
+        }
+    }
+    PathBuf::from("locales")
+}
+
 pub fn detect_language() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        use winapi::um::winnls::GetUserDefaultUILanguage;
-        let lang_id = unsafe { GetUserDefaultUILanguage() };
+    unsafe {
+        let lang_id = GetUserDefaultUILanguage();
         let primary = lang_id & 0x3FF;
         match primary {
             0x11 => "ja".to_string(),
             _ => "en".to_string(),
         }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let locale = std::env::var("LANG").unwrap_or_default();
-        if locale.starts_with("ja") { "ja".to_string() } else { "en".to_string() }
     }
 }

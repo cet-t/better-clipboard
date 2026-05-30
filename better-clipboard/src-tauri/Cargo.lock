@@ -291,6 +291,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "better-clipboard"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "dirs 5.0.1",
  "env_logger",
@@ -303,7 +304,6 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-opener",
- "thiserror 2.0.18",
  "toml 0.8.2",
  "winapi",
 ]

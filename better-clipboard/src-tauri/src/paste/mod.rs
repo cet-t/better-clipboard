@@ -1,14 +1,16 @@
 use std::ptr;
 
+use anyhow::{bail, Result};
 use winapi::shared::minwindef::{FALSE, TRUE};
+use winapi::um::processthreadsapi::GetCurrentThreadId;
 use winapi::um::winbase::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use winapi::um::winuser::{
     AttachThreadInput, CloseClipboard, EmptyClipboard, GetFocus, GetForegroundWindow,
-    GetWindowThreadProcessId, OpenClipboard, SendMessageA, SetClipboardData,
-    CF_UNICODETEXT, WM_PASTE,
+    GetWindowThreadProcessId, OpenClipboard, SendMessageA, SetClipboardData, CF_UNICODETEXT,
+    WM_PASTE,
 };
 
-pub fn paste_text(text: &str) -> Result<(), String> {
+pub fn paste_text(text: &str) -> Result<()> {
     set_clipboard_text(text)?;
     log::info!("clipboard set, sending WM_PASTE");
 
@@ -16,17 +18,15 @@ pub fn paste_text(text: &str) -> Result<(), String> {
     log::info!("foreground window: {:p}", hwnd);
 
     if hwnd.is_null() {
-        return Err("No foreground window".to_string());
+        bail!("No foreground window");
     }
 
     let focused = unsafe {
         let target_tid = GetWindowThreadProcessId(hwnd, ptr::null_mut());
-        let current_tid = winapi::um::processthreadsapi::GetCurrentThreadId();
-
+        let current_tid = GetCurrentThreadId();
         AttachThreadInput(current_tid, target_tid, TRUE);
         let fg_focus = GetFocus();
         AttachThreadInput(current_tid, target_tid, FALSE);
-
         fg_focus
     };
 
@@ -42,10 +42,10 @@ pub fn paste_text(text: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn set_clipboard_text(text: &str) -> Result<(), String> {
+fn set_clipboard_text(text: &str) -> Result<()> {
     let opened = unsafe { OpenClipboard(ptr::null_mut()) };
     if opened == FALSE {
-        return Err("Failed to open clipboard".to_string());
+        bail!("Failed to open clipboard");
     }
 
     unsafe { EmptyClipboard() };
@@ -56,14 +56,14 @@ fn set_clipboard_text(text: &str) -> Result<(), String> {
     let h_mem = unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes) };
     if h_mem.is_null() {
         unsafe { CloseClipboard() };
-        return Err("Failed to allocate global memory".to_string());
+        bail!("Failed to allocate global memory");
     }
 
     let p_dest = unsafe { GlobalLock(h_mem) } as *mut u16;
     if p_dest.is_null() {
         unsafe { GlobalUnlock(h_mem) };
         unsafe { CloseClipboard() };
-        return Err("Failed to lock global memory".to_string());
+        bail!("Failed to lock global memory");
     }
 
     unsafe {
@@ -74,9 +74,4 @@ fn set_clipboard_text(text: &str) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn paste_text(_text: &str) -> Result<(), String> {
-    Err("Paste not supported on this platform".to_string())
 }

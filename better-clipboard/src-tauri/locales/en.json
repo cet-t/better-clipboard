@@ -1,9 +1,17 @@
 {
   "window_title_overlay": "Better Clipboard",
   "window_title_settings": "Better Clipboard - Settings",
+  "tray_settings": "Settings",
+  "tray_restart": "Restart",
+  "tray_quit": "Quit",
 
   "overlay_title": "Clipboard",
   "overlay_footer_select": "a-; select",
+  "overlay_footer_edit": "{key} edit",
+  "overlay_footer_edit_select": "{key} exit | a-; select",
+  "overlay_footer_delete": "{key} delete",
+  "overlay_footer_delete_select": "{key} exit | a-; delete",
+  "overlay_footer_page": "w\u2191 r\u2193 {current}/{total}",
   "overlay_footer_close": "Esc close",
 
   "settings_title": "Settings",
