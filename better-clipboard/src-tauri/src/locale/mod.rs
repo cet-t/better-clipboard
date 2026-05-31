@@ -49,14 +49,6 @@ impl LocaleStrings {
             .cloned()
             .unwrap_or_else(|| key.to_string())
     }
-
-    pub fn get_with(&self, key: &str, params: &[(&str, &str)]) -> String {
-        let mut s = self.get(key);
-        for (k, v) in params {
-            s = s.replace(&format!("{{{}}}", k), v);
-        }
-        s
-    }
 }
 
 fn locale_dir() -> PathBuf {

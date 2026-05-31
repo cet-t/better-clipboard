@@ -25,8 +25,6 @@ impl AppState {
     }
 
     pub fn handle_clipboard_event(&self, event: clipboard::ClipboardEvent) {
-        use sha2::{Digest, Sha256};
-
         let (entry_type, text_content, file_data) = match event {
             clipboard::ClipboardEvent::Text(text) => {
                 ("text".to_string(), Some(text), None)
@@ -36,10 +34,7 @@ impl AppState {
             }
         };
 
-        let text_for_hash = text_content.as_deref().unwrap_or("");
-        let mut hasher = Sha256::new();
-        hasher.update(text_for_hash.as_bytes());
-        let content_hash = format!("{:x}", hasher.finalize());
+        let content_hash = Self::hash_text(text_content.as_deref().unwrap_or(""));
 
         if let Ok(db_lock) = self.database.lock() {
             let display_order = db_lock.next_display_order().unwrap_or(0);

@@ -122,15 +122,7 @@ impl Config {
             .overlay
             .split(&['+', ' '][..])
             .filter(|s| !s.is_empty())
-            .map(|s| {
-                let s = s.trim();
-                if s.len() == 1 {
-                    s.to_uppercase()
-                } else {
-                    let mut chars = s.chars();
-                    chars.next().unwrap().to_uppercase().to_string() + chars.as_str()
-                }
-            })
+            .map(|s| capitalize_first(s.trim()))
             .collect::<Vec<_>>()
             .join("+")
     }
@@ -158,5 +150,16 @@ impl Config {
         }
         let content = toml::to_string_pretty(self).unwrap_or_default();
         let _ = std::fs::write(&path, content);
+    }
+}
+
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => {
+            let upper: String = first.to_uppercase().collect();
+            upper + chars.as_str()
+        }
     }
 }

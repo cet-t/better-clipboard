@@ -2,6 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
+const PAGE_SIZE = 8;
+const MAX_TEXT_LENGTH = 120;
+const SELECT_KEYS = "asdfjkl;";
+
 interface ClipboardEntry {
   id: number;
   entry_type: string;
@@ -16,6 +20,8 @@ interface ClipboardEntry {
   display_order: number;
 }
 
+type Mode = "normal" | "editSelect" | "deleteSelect";
+
 const entryList = document.getElementById("entry-list")!;
 const entryCount = document.getElementById("entry-count")!;
 const footerEdit = document.getElementById("footer-edit")!;
@@ -27,8 +33,6 @@ const editTextarea = document.getElementById("edit-textarea") as HTMLTextAreaEle
 const editSave = document.getElementById("edit-save")!;
 const editCancel = document.getElementById("edit-cancel")!;
 
-const PAGE_SIZE = 8;
-type Mode = "normal" | "editSelect" | "deleteSelect";
 let mode: Mode = "normal";
 let editKey = "e";
 let deleteKey = "q";
@@ -37,8 +41,9 @@ let pageDownKey = "r";
 let entries: ClipboardEntry[] = [];
 let editingEntryId: number | null = null;
 let page = 0;
-
 let localeStrings: Record<string, string> = {};
+
+// ── Locale ──────────────────────────────────────────────
 
 function locale(key: string, params?: Record<string, string>): string {
   let s = localeStrings[key] || key;
@@ -63,9 +68,14 @@ async function applyLocale() {
   }
 }
 
+// ── Config & Data ───────────────────────────────────────
+
 async function loadConfig() {
   try {
-    const config = await invoke<{ font_family: string | null; hotkeys: { edit_key: string; delete_key: string; page_up: string; page_down: string } }>("get_config");
+    const config = await invoke<{
+      font_family: string | null;
+      hotkeys: { edit_key: string; delete_key: string; page_up: string; page_down: string };
+    }>("get_config");
     if (config.font_family) {
       document.body.style.fontFamily = config.font_family;
     }
@@ -92,24 +102,26 @@ async function loadEntries() {
   }
 }
 
+// ── Rendering ───────────────────────────────────────────
+
 function focusOverlay() {
-  const overlay = document.getElementById("overlay");
-  if (overlay) {
-    overlay.focus();
-  }
+  document.getElementById("overlay")?.focus();
   window.focus();
 }
 
+function totalPages(): number {
+  return Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+}
+
 function updatePageInfo() {
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  footerPage.textContent = totalPages > 1
-    ? locale("overlay_footer_page", { current: String(page + 1), total: String(totalPages) })
+  const total = totalPages();
+  footerPage.textContent = total > 1
+    ? locale("overlay_footer_page", { current: String(page + 1), total: String(total) })
     : "";
 }
 
 function renderEntries() {
   entryList.innerHTML = "";
-  const keys = "asdfjkl;";
   const start = page * PAGE_SIZE;
   const visible = entries.slice(start, start + PAGE_SIZE);
 
@@ -122,49 +134,46 @@ function renderEntries() {
 
     const keyHint = document.createElement("span");
     keyHint.className = "key-hint";
-    keyHint.textContent = keys[i] || "";
+    keyHint.textContent = SELECT_KEYS[i] || "";
 
     const content = document.createElement("span");
     content.className = "entry-content";
     const text = entry.text_content || "";
-    content.textContent = text.length > 120 ? text.slice(0, 117) + "..." : text;
+    content.textContent = text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH - 3) + "..." : text;
     content.title = text;
 
     item.appendChild(keyHint);
     item.appendChild(content);
-    item.addEventListener("click", () => {
-      if (mode === "editSelect") {
-        openEditPanel(start + i);
-      } else if (mode === "deleteSelect") {
-        deleteEntry(start + i);
-      } else {
-        pasteEntry(start + i);
-      }
-    });
+    item.addEventListener("click", () => handleEntryClick(start + i));
     entryList.appendChild(item);
   });
 
   updatePageInfo();
 }
 
-function prevPage() {
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  if (page > 0) {
-    page--;
+function handleEntryClick(index: number) {
+  if (mode === "editSelect") {
+    openEditPanel(index);
+  } else if (mode === "deleteSelect") {
+    deleteEntry(index);
   } else {
-    page = totalPages - 1;
+    pasteEntry(index);
   }
+}
+
+// ── Pagination ──────────────────────────────────────────
+
+function changePage(delta: -1 | 1) {
+  const total = totalPages();
+  page = (page + delta + total) % total;
   renderEntries();
 }
 
-function nextPage() {
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  if (page < totalPages - 1) {
-    page++;
-  } else {
-    page = 0;
-  }
-  renderEntries();
+// ── Mode Management ─────────────────────────────────────
+
+function exitAllSelectModes() {
+  if (mode === "editSelect") exitEditSelect();
+  else if (mode === "deleteSelect") exitDeleteSelect();
 }
 
 function enterEditSelect() {
@@ -191,6 +200,8 @@ function exitDeleteSelect() {
   footerDelete.textContent = locale("overlay_footer_delete", { key: deleteKey });
   renderEntries();
 }
+
+// ── Entry Actions ───────────────────────────────────────
 
 async function deleteEntry(index: number) {
   const entry = entries[index];
@@ -246,88 +257,71 @@ async function pasteEntry(index: number) {
   }
 }
 
-function entryIndexByKey(key: string): number {
-  const keys = "asdfjkl;";
-  return keys.indexOf(key);
+// ── Keyboard ────────────────────────────────────────────
+
+function selectKeyIndex(key: string): number {
+  return SELECT_KEYS.indexOf(key);
+}
+
+function handleEditPanelKeys(e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    closeEditPanel();
+    loadEntries();
+  } else if (e.key === "s" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    saveEdit();
+  }
+}
+
+function handleSelectModeKeys(e: KeyboardEvent) {
+  if (e.key === pageUpKey) { changePage(-1); return; }
+  if (e.key === pageDownKey) { changePage(1); return; }
+
+  const idx = selectKeyIndex(e.key);
+  if (idx >= 0) {
+    e.preventDefault();
+    const target = page * PAGE_SIZE + idx;
+    if (mode === "editSelect") openEditPanel(target);
+    else deleteEntry(target);
+  } else if (e.key === "Escape") {
+    exitAllSelectModes();
+  }
+}
+
+function handleNormalKeys(e: KeyboardEvent) {
+  if (e.key === pageUpKey) { changePage(-1); return; }
+  if (e.key === pageDownKey) { changePage(1); return; }
+
+  const idx = selectKeyIndex(e.key);
+  if (idx >= 0) pasteEntry(page * PAGE_SIZE + idx);
+  if (e.key === "Escape") getCurrentWindow().hide();
 }
 
 window.addEventListener("keydown", (e) => {
-  if (editPanel.classList.contains("hidden") === false) {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      closeEditPanel();
-      loadEntries();
-    }
-    if (e.key === "s" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      saveEdit();
-    }
+  if (!editPanel.classList.contains("hidden")) {
+    handleEditPanelKeys(e);
     return;
   }
 
   if (e.key === editKey) {
-    if (mode === "editSelect") {
-      exitEditSelect();
-    } else {
-      if (mode === "deleteSelect") exitDeleteSelect();
-      enterEditSelect();
-    }
+    if (mode === "editSelect") exitEditSelect();
+    else { exitAllSelectModes(); enterEditSelect(); }
     return;
   }
 
   if (e.key === deleteKey) {
-    if (mode === "deleteSelect") {
-      exitDeleteSelect();
-    } else {
-      if (mode === "editSelect") exitEditSelect();
-      enterDeleteSelect();
-    }
+    if (mode === "deleteSelect") exitDeleteSelect();
+    else { exitAllSelectModes(); enterDeleteSelect(); }
     return;
   }
 
   if (mode === "editSelect" || mode === "deleteSelect") {
-    if (e.key === pageUpKey) {
-      prevPage();
-      return;
-    }
-    if (e.key === pageDownKey) {
-      nextPage();
-      return;
-    }
-    const idx = entryIndexByKey(e.key);
-    if (idx >= 0) {
-      e.preventDefault();
-      if (mode === "editSelect") {
-        openEditPanel(page * PAGE_SIZE + idx);
-      } else {
-        deleteEntry(page * PAGE_SIZE + idx);
-      }
-    } else if (e.key === "Escape") {
-      if (mode === "editSelect") {
-        exitEditSelect();
-      } else {
-        exitDeleteSelect();
-      }
-    }
+    handleSelectModeKeys(e);
     return;
   }
 
-  if (e.key === pageUpKey) {
-    prevPage();
-    return;
-  }
-  if (e.key === pageDownKey) {
-    nextPage();
-    return;
-  }
-
-  const idx = entryIndexByKey(e.key);
-  if (idx >= 0) {
-    pasteEntry(page * PAGE_SIZE + idx);
-  }
-  if (e.key === "Escape") {
-    getCurrentWindow().hide();
-  }
+  handleNormalKeys(e);
 });
 
 editSave.addEventListener("click", saveEdit);

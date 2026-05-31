@@ -25,9 +25,12 @@ interface Config {
 
 let strings: Record<string, string> = {};
 
+const ALPHABET = "abcdefghijklmnopqrstuvwxyz".split("");
+const NUMBERS = "0123456789".split("");
+
 const KEY_OPTIONS = [
-  ...("abcdefghijklmnopqrstuvwxyz".split("").map((k) => k)),
-  ...("0123456789".split("")),
+  ...ALPHABET,
+  ...NUMBERS,
   "Tab", "Space", "Backspace", "Delete", "Insert",
   "Home", "End", "PageUp", "PageDown",
   "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
@@ -35,17 +38,13 @@ const KEY_OPTIONS = [
   "F7", "F8", "F9", "F10", "F11", "F12",
 ];
 
-const MODIFIER_COMBOS: string[] = [];
-for (const mod of ["ctrl", "alt", "shift"]) {
-  for (const key of "abcdefghijklmnopqrstuvwxyz".split("")) {
-    MODIFIER_COMBOS.push(`${mod}+${key}`);
-  }
-}
-for (const mod of ["ctrl+alt", "ctrl+shift", "alt+shift"]) {
-  for (const key of "abcdefghijklmnopqrstuvwxyz".split("")) {
-    MODIFIER_COMBOS.push(`${mod}+${key}`);
-  }
-}
+const MODIFIERS = ["ctrl", "alt", "shift"];
+const MODIFIER_PAIRS = ["ctrl+alt", "ctrl+shift", "alt+shift"];
+
+const MODIFIER_COMBOS = [
+  ...MODIFIERS.flatMap((mod) => ALPHABET.map((key) => `${mod}+${key}`)),
+  ...MODIFIER_PAIRS.flatMap((mod) => ALPHABET.map((key) => `${mod}+${key}`)),
+];
 
 const HOTKEY_OPTIONS = [...KEY_OPTIONS, ...MODIFIER_COMBOS].sort();
 
@@ -151,29 +150,10 @@ async function saveConfig() {
   }
 }
 
-async function clearAll() {
+async function clearEntries(mode: string, days: number | null, message: string) {
   try {
-    await invoke("clear_entries", { mode: "all", days: null });
-    status.textContent = strings.status_cleared_all || "Cleared all entries";
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-async function clearDisplay() {
-  try {
-    await invoke("clear_entries", { mode: "display", days: null });
-    status.textContent = strings.status_cleared_display || "Cleared display entries";
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-async function clearOlder() {
-  const days = parseInt(clearOlderDays.value, 10) || 30;
-  try {
-    await invoke("clear_entries", { mode: "older", days });
-    status.textContent = (strings.status_cleared_older || "Cleared entries older than {days} days").replace("{days}", String(days));
+    await invoke("clear_entries", { mode, days });
+    status.textContent = message;
   } catch (err) {
     console.error(err);
   }
@@ -181,9 +161,18 @@ async function clearOlder() {
 
 saveBtn.addEventListener("click", saveConfig);
 cancelBtn.addEventListener("click", () => getCurrentWindow().hide());
-clearAllBtn.addEventListener("click", clearAll);
-clearDisplayBtn.addEventListener("click", clearDisplay);
-clearOlderBtn.addEventListener("click", clearOlder);
+clearAllBtn.addEventListener("click", () =>
+  clearEntries("all", null, strings.status_cleared_all || "Cleared all entries")
+);
+clearDisplayBtn.addEventListener("click", () =>
+  clearEntries("display", null, strings.status_cleared_display || "Cleared display entries")
+);
+clearOlderBtn.addEventListener("click", () => {
+  const days = parseInt(clearOlderDays.value, 10) || 30;
+  const msg = (strings.status_cleared_older || "Cleared entries older than {days} days")
+    .replace("{days}", String(days));
+  clearEntries("older", days, msg);
+});
 
 window.addEventListener("DOMContentLoaded", async () => {
   await applyLocale();

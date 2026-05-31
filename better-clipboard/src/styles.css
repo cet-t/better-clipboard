@@ -120,69 +120,16 @@ body {
   border-top: 1px solid var(--border);
 }
 
-.entry-item.edit-mode {
-  opacity: 0.6;
-}
-
+.entry-item.edit-mode,
 .entry-item.delete-mode {
   opacity: 0.6;
-}
-
-.entry-edit {
-  padding: 8px 10px;
-}
-
-.edit-textarea {
-  width: 100%;
-  min-height: 80px;
-  padding: 8px;
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  resize: vertical;
-  outline: none;
-}
-
-.edit-textarea:focus {
-  border-color: var(--accent);
-}
-
-.edit-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.edit-actions button {
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.edit-actions button:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.edit-actions button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.edit-actions button.primary:hover {
-  filter: brightness(1.1);
 }
 
 .hidden {
   display: none !important;
 }
+
+/* Edit Panel */
 
 #edit-panel {
   position: fixed;
