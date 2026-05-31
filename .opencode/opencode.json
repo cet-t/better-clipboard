@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "caveman-opencode-plugin@latest",
+    ["token-optimizer-opencode", {
+      "qualityWindow": 20,
+      "features": {
+        "qualityNudges": true,
+        "loopDetection": true,
+        "smartCompaction": true,
+        "continuity": true,
+        "activityTracking": true,
+        "trends": true
+      }
+    }], "context-mode@latest"
+  ],
+  "instructions": [
+    "./instructions/rust-skills.md"
+  ]
+}
