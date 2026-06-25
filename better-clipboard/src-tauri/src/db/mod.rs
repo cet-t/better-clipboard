@@ -195,6 +195,19 @@ impl Database {
         Ok(())
     }
 
+    pub fn get_entry_text(&self, id: i64) -> Result<Option<String>> {
+        let result = self.conn.query_row(
+            "SELECT text_content FROM clipboard_entries WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, Option<String>>(0),
+        );
+        match result {
+            Ok(text) => Ok(text),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e).context("failed to get entry text"),
+        }
+    }
+
     pub fn update_entry_text(&self, id: i64, text: &str, content_hash: &str) -> Result<()> {
         self.conn
             .execute(

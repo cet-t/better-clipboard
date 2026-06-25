@@ -90,13 +90,17 @@ async function loadConfig() {
   }
 }
 
+async function reloadEntries() {
+  entries = await invoke<ClipboardEntry[]>("get_clipboard_entries");
+  page = 0;
+  renderEntries();
+  entryCount.textContent = String(entries.length);
+}
+
 async function loadEntries() {
   try {
     await invoke("ensure_clipboard_captured");
-    entries = await invoke<ClipboardEntry[]>("get_clipboard_entries");
-    page = 0;
-    renderEntries();
-    entryCount.textContent = String(entries.length);
+    await reloadEntries();
   } catch (err) {
     console.error("Failed to load entries:", err);
   }
@@ -243,7 +247,7 @@ async function saveEdit() {
   try {
     await invoke("save_edited_entry", { id: editingEntryId, text: editTextarea.value });
     closeEditPanel();
-    await loadEntries();
+    await reloadEntries();
   } catch (err) {
     console.error("Failed to save edit:", err);
   }

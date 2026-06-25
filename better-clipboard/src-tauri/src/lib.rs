@@ -74,10 +74,7 @@ pub fn run() {
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let tray_locale = {
         let state = app.state::<AppState>();
-        let guard = state
-            .locale_strings
-            .lock()
-            .map_err(|e| e.to_string())?;
+        let guard = state.locale_strings.lock().map_err(|e| e.to_string())?;
         guard.strings.clone()
     };
 

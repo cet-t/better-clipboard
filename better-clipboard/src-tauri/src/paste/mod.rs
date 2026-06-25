@@ -1,48 +1,64 @@
+use std::mem;
 use std::ptr;
 
 use anyhow::{bail, Result};
-use winapi::shared::minwindef::{FALSE, TRUE};
-use winapi::um::processthreadsapi::GetCurrentThreadId;
+use winapi::shared::minwindef::FALSE;
 use winapi::um::winbase::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
 use winapi::um::winuser::{
-    AttachThreadInput, CloseClipboard, EmptyClipboard, GetFocus, GetForegroundWindow,
-    GetWindowThreadProcessId, OpenClipboard, SendMessageA, SetClipboardData, CF_UNICODETEXT,
-    WM_PASTE,
+    CloseClipboard, EmptyClipboard, OpenClipboard, SendInput, SetClipboardData, CF_UNICODETEXT,
+    INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_CONTROL,
 };
+
+const VK_V: u16 = 0x56;
 
 pub fn paste_text(text: &str) -> Result<()> {
     set_clipboard_text(text)?;
-    log::info!("clipboard set, sending WM_PASTE");
+    log::info!("clipboard set, sending Ctrl+V via SendInput");
 
-    let hwnd = unsafe { GetForegroundWindow() };
-    log::info!("foreground window: {:p}", hwnd);
+    send_ctrl_v()?;
+    log::info!("Ctrl+V sent");
+    Ok(())
+}
 
-    if hwnd.is_null() {
-        bail!("No foreground window");
+fn key_input(vk: u16, key_up: bool) -> INPUT {
+    let mut input: INPUT = unsafe { mem::zeroed() };
+    input.type_ = INPUT_KEYBOARD;
+    let ki = KEYBDINPUT {
+        wVk: vk,
+        wScan: 0,
+        dwFlags: if key_up { KEYEVENTF_KEYUP } else { 0 },
+        time: 0,
+        dwExtraInfo: 0,
+    };
+    unsafe {
+        *input.u.ki_mut() = ki;
     }
+    input
+}
 
-    let focused = unsafe {
-        let target_tid = GetWindowThreadProcessId(hwnd, ptr::null_mut());
-        let current_tid = GetCurrentThreadId();
-        AttachThreadInput(current_tid, target_tid, TRUE);
-        let fg_focus = GetFocus();
-        AttachThreadInput(current_tid, target_tid, FALSE);
-        fg_focus
+fn send_ctrl_v() -> Result<()> {
+    let mut inputs = [
+        key_input(VK_CONTROL as u16, false),
+        key_input(VK_V, false),
+        key_input(VK_V, true),
+        key_input(VK_CONTROL as u16, true),
+    ];
+
+    let sent = unsafe {
+        SendInput(
+            inputs.len() as u32,
+            inputs.as_mut_ptr(),
+            mem::size_of::<INPUT>() as i32,
+        )
     };
 
-    log::info!("focused control: {:p}", focused);
-
-    if !focused.is_null() {
-        unsafe { SendMessageA(focused, WM_PASTE, 0, 0) };
-        log::info!("WM_PASTE sent to focused control");
-    } else {
-        unsafe { SendMessageA(hwnd, WM_PASTE, 0, 0) };
-        log::info!("WM_PASTE sent to foreground window (fallback)");
+    if sent != inputs.len() as u32 {
+        bail!("SendInput failed: sent {} of {} events", sent, inputs.len());
     }
     Ok(())
 }
 
-fn set_clipboard_text(text: &str) -> Result<()> {
+pub fn set_clipboard_text(text: &str) -> Result<()> {
     let opened = unsafe { OpenClipboard(ptr::null_mut()) };
     if opened == FALSE {
         bail!("Failed to open clipboard");

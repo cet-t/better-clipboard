@@ -70,9 +70,25 @@ pub fn save_edited_entry(
     text: String,
 ) -> Result<(), String> {
     let content_hash = AppState::hash_text(&text);
-    let db = lock!(state.database)?;
-    db.update_entry_text(id, &text, &content_hash)
-        .map_err(|e| e.to_string())
+
+    let sync_clipboard = {
+        let db = lock!(state.database)?;
+        let old_text = db.get_entry_text(id).map_err(|e| e.to_string())?;
+        db.update_entry_text(id, &text, &content_hash)
+            .map_err(|e| e.to_string())?;
+
+        match (old_text, clipboard::read_current_text()) {
+            (Some(old), Some(current)) => old == current,
+            _ => false,
+        }
+    };
+
+    if sync_clipboard {
+        state.suppress_monitor.store(true, Ordering::SeqCst);
+        paste::set_clipboard_text(&text).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

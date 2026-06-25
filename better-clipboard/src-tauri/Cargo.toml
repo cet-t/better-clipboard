@@ -26,6 +26,10 @@ dirs = "5"
 log = "0.4"
 env_logger = "0.11"
 anyhow = "1"
+windows = { version = "0.58", features = [
+  "Win32_System_Com",
+  "Win32_UI_Accessibility",
+] }
 winapi = { version = "0.3", features = [
   "winuser",
   "winbase",
