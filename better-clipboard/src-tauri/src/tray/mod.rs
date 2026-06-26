@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use tauri::{
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder,
@@ -23,6 +24,9 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>, locale: &HashMap<String, String>) -
     let menu = Menu::with_items(app, &[&settings, &restart, &quit])?;
 
     TrayIconBuilder::new()
+        .icon(Image::from_bytes(include_bytes!(
+            "../../icons/icon.png"
+        )).unwrap())
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "settings" => {
